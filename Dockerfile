@@ -1,8 +1,10 @@
 FROM node:20-bullseye-slim
 
-# Instala o Chromium e as bibliotecas de sistema que o Puppeteer precisa.
+# Instala o Chromium, o pacote de sandbox dele e as bibliotecas de sistema
+# que o Puppeteer precisa para funcionar corretamente.
 RUN apt-get update && apt-get install -y \
     chromium \
+    chromium-sandbox \
     ca-certificates \
     fonts-liberation \
     libasound2 \
@@ -36,12 +38,15 @@ RUN NPM_ROOT=$(npm root -g) && \
       sed -i "s/console.error(err.message);/console.error(err.message); throw err;/" "$FILE"; \
     fi
 
-# O Chromium recusa abrir quando o processo roda como root, a menos que se
-# use a opção "--no-sandbox", que o downdetector-api não nos deixa definir.
-# A solução é criar um usuário comum e rodar tudo através dele.
+# Cria um usuário comum, sem privilégios de root, para rodar o Chromium.
 RUN groupadd -r appuser && useradd -r -g appuser -G audio,video appuser \
     && mkdir -p /home/appuser \
     && chown -R appuser:appuser /home/appuser
+
+# Concede a capacidade "SETUID" ao binário do Chromium, permitindo que o
+# mecanismo de sandbox dele funcione mesmo sem privilégios de root.
+RUN chmod 4755 /usr/lib/chromium/chrome-sandbox || \
+    chmod 4755 /usr/lib/chromium-browser/chrome-sandbox || true
 
 USER appuser
 ENV HOME=/home/appuser
