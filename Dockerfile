@@ -1,7 +1,7 @@
 FROM node:20-alpine
 
-RUN npm install -g downdetector-mcp supergateway
+RUN npm install -g downdetector-mcp@latest supergateway@latest
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "npx -y supergateway --stdio 'npx -y downdetector-mcp' --port 3000 --baseUrl https://monitoramento-downdetector-mcp.cackbc.easypanel.host --healthEndpoint /health --ssePath /${MCP_SECRET_PATH}/sse --messagePath /${MCP_SECRET_PATH}/message"]
+CMD ["sh", "-c", "supergateway --stdio 'downdetector-mcp' --port 3000 --outputTransport streamableHttp --httpPath /${MCP_SECRET_PATH}/mcp --healthEndpoint /health"]
