@@ -1,9 +1,6 @@
 FROM node:20-bullseye-slim
 
 # Instala o Chromium e as bibliotecas de sistema que o Puppeteer precisa.
-# A imagem "alpine" usada antes não tinha essas bibliotecas, por isso o
-# downdetector-api falhava silenciosamente ao tentar abrir o navegador
-# headless, gerando o erro "Cannot read properties of undefined (reading 'reports')".
 RUN apt-get update && apt-get install -y \
     chromium \
     ca-certificates \
@@ -26,24 +23,28 @@ RUN apt-get update && apt-get install -y \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
-# Diz ao Puppeteer para usar o Chromium do sistema, em vez de tentar baixar
-# o dele próprio (esse download falharia de qualquer forma sem essas bibliotecas).
-# As duas variáveis existem porque o nome mudou entre versões do Puppeteer.
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 RUN npm install -g downdetector-mcp@latest supergateway@latest
 
-# Corrige o downdetector-api para não engolir erros silenciosamente: em vez
-# de só fazer console.error e devolver "undefined" (o que quebrava o
-# downdetector-mcp com uma mensagem confusa), agora ele relança o erro,
-# então qualquer falha futura aparece com uma mensagem real e útil.
+# Corrige o downdetector-api para não engolir erros silenciosamente.
 RUN NPM_ROOT=$(npm root -g) && \
     FILE="$NPM_ROOT/downdetector-mcp/node_modules/downdetector-api/index.js" && \
     if [ -f "$FILE" ]; then \
       sed -i "s/console.error(err.message);/console.error(err.message); throw err;/" "$FILE"; \
     fi
+
+# O Chromium recusa abrir quando o processo roda como root, a menos que se
+# use a opção "--no-sandbox", que o downdetector-api não nos deixa definir.
+# A solução é criar um usuário comum e rodar tudo através dele.
+RUN groupadd -r appuser && useradd -r -g appuser -G audio,video appuser \
+    && mkdir -p /home/appuser \
+    && chown -R appuser:appuser /home/appuser
+
+USER appuser
+ENV HOME=/home/appuser
 
 EXPOSE 3000
 
